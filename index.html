@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>ペンギンダッシュ！ボスバトル</title>
+
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+-webkit-tap-highlight-color:transparent;
+}
+
+html,body{
+width:100%;
+height:100%;
+overflow:hidden;
+font-family:sans-serif;
+background:#0b4f7a;
+touch-action:none;
+color:#fff;
+}
+
+.screen{
+width:100%;
+height:100%;
+display:none;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+padding:20px;
+text-align:center;
+}
+
+.screen.active{
+display:flex;
+}
+
+button{
+border:none;
+border-radius:16px;
+padding:16px 28px;
+font-size:20px;
+font-weight:bold;
+background:#ffd43b;
+color:#000;
+min-width:220px;
+}
+
+h1{
+margin-bottom:15px;
+}
+
+.small{
+max-width:520px;
+line-height:1.8;
+}
+
+#gameScreen{
+padding:0;
+justify-content:flex-start;
+}
+
+#hud{
+width:100%;
+display:flex;
+justify-content:space-around;
+align-items:center;
+padding:10px;
+background:#083b5a;
+font-size:18px;
+font-weight:bold;
+z-index:20;
+}
+
+#gameArea{
+position:relative;
+width:100%;
+flex:1;
+overflow:hidden;
+background:linear-gradient(#7fd3ff,#eefbff);
+touch-action:none;
+}
+
+#penguin{
+position:absolute;
+left:50%;
+bottom:60px;
+transform:translateX(-50%);
+font-size:50px;
+z-index:10;
+user-select:none;
+}
+
+.obstacle{
+position:absolute;
+font-size:42px;
+user-select:none;
+}
+
+.coin{
+position:absolute;
+font-size:30px;
+user-select:none;
+}
+
+#boss{
+position:absolute;
+top:40px;
+left:50%;
+transform:translateX(-50%);
+font-size:100px;
+display:none;
+z-index:8;
+}
+
+#bossHpWrap{
+position:absolute;
+top:8px;
+left:50%;
+transform:translateX(-50%);
+width:75%;
+height:20px;
+background:#333;
+border-radius:20px;
+overflow:hidden;
+display:none;
+z-index:15;
+}
+
+#bossHp{
+width:100%;
+height:100%;
+background:#ff4444;
+}
+
+#bossText{
+position:absolute;
+top:32px;
+left:50%;
+transform:translateX(-50%);
+font-weight:bold;
+display:none;
+z-index:15;
+}
+
+#message{
+position:absolute;
+left:50%;
+top:45%;
+transform:translate(-50%,-50%);
+font-size:42px;
+font-weight:bold;
+display:none;
+color:#ffeb3b;
+text-shadow:0 0 10px #000;
+z-index:50;
+}
+
+.bossBullet{
+position:absolute;
+font-size:34px;
+z-index:9;
+}
+
+.playerShot{
+position:absolute;
+font-size:30px;
+pointer-events:none;
+z-index:20;
+}
+
+#rank{
+font-size:34px;
+font-weight:bold;
+color:#ffd43b;
+}
+</style>
+</head>
+
+<body>
+
+<div id="startScreen" class="screen active">
+<h1>🐧 ペンギンダッシュ！</h1>
+
+<div class="small">
+左右ドラッグで移動！<br>
+🐟を集めてスコアアップ！<br>
+🧊に当たると即ゲームオーバー！<br>
+残り10秒で巨大ボス出現！<br>
+タップで魚ミサイル発射！<br>
+ボスを倒すか30秒生き残ろう！
+</div>
+
+<br>
+
+<button id="startBtn">ゲームスタート</button>
+</div>
+
+<div id="gameScreen" class="screen">
+
+<div id="hud">
+<div>スコア <span id="score">0</span></div>
+<div>❤️ <span id="playerHp">5</span></div>
+<div>残り <span id="time">30</span>秒</div>
+</div>
+
+<div id="gameArea">
+
+<div id="bossHpWrap">
+<div id="bossHp"></div>
+</div>
+
+<div id="bossText">🦭 ボス出現！</div>
+
+<div id="message">BOSS BATTLE!</div>
+
+<div id="boss">🦭</div>
+
+<div id="penguin">🐧</div>
+
+</div>
+
+</div>
+
+<div id="resultScreen" class="screen">
+
+<h1>結果発表</h1>
+
+<div style="font-size:28px;">最終スコア</div>
+
+<div id="finalScore"
+style="font-size:56px;font-weight:bold;">
+0
+</div>
+
+<div id="rank">C</div>
+
+<br>
+
+<button id="retryBtn">もう一度遊ぶ</button>
+
+</div>
+
+<script>
+const startScreen=document.getElementById("startScreen");
+const gameScreen=document.getElementById("gameScreen");
+const resultScreen=document.getElementById("resultScreen");
+
+const gameArea=document.getElementById("gameArea");
+const penguin=document.getElementById("penguin");
+
+const scoreEl=document.getElementById("score");
+const timeEl=document.getElementById("time");
+const playerHpEl=document.getElementById("playerHp");
+
+const finalScoreEl=document.getElementById("finalScore");
+const rankEl=document.getElementById("rank");
+
+const boss=document.getElementById("boss");
+const bossHp=document.getElementById("bossHp");
+const bossHpWrap=document.getElementById("bossHpWrap");
+const bossText=document.getElementById("bossText");
+const message=document.getElementById("message");
+
+let score=0;
+let timeLeft=30;
+
+let running=false;
+let bossMode=false;
+let bossDefeated=false;
+
+let playerHp=5;
+let bossHpValue=100;
+
+let px=0;
+let targetX=0;
+
+let gameLoop;
+let spawnLoop;
+let timerLoop;
+let bossAttackLoop;
+
+function show(screen){
+[startScreen,gameScreen,resultScreen].forEach(s=>{
+s.classList.remove("active");
+});
+screen.classList.add("active");
+}
+
+function startGame(){
+
+show(gameScreen);
+
+document.querySelectorAll(
+".obstacle,.coin,.bossBullet,.playerShot"
+).forEach(e=>e.remove());
+
+score=0;
+timeLeft=30;
+
+playerHp=5;
+bossHpValue=100;
+bossDefeated=false;
+
+running=true;
+bossMode=false;
+
+scoreEl.textContent=score;
+timeEl.textContent=timeLeft;
+playerHpEl.textContent=playerHp;
+
+boss.style.display="none";
+bossHpWrap.style.display="none";
+bossText.style.display="none";
+message.style.display="none";
+
+bossHp.style.width="100%";
+
+px=gameArea.clientWidth/2;
+targetX=px;
+
+penguin.style.left=px+"px";
+
+clearInterval(spawnLoop);
+clearInterval(timerLoop);
+clearInterval(bossAttackLoop);
+
+spawnLoop=setInterval(spawnItem,350);
+
+timerLoop=setInterval(()=>{
+
+timeLeft--;
+timeEl.textContent=timeLeft;
+
+if(timeLeft===10){
+startBossBattle();
+}
+
+if(timeLeft<=0){
+endGame(false,false);
+}
+
+},1000);
+
+gameLoop=requestAnimationFrame(update);
+}
+
+function spawnItem(){
+
+if(!running || bossMode) return;
+
+const isCoin=Math.random()<0.22;
+
+const item=document.createElement("div");
+
+item.className=isCoin ? "coin" : "obstacle";
+item.textContent=isCoin ? "🐟" : "🧊";
+
+item.style.left=
+Math.random()*(gameArea.clientWidth-50)+"px";
+
+item.style.top="-60px";
+
+item.dataset.speed=
+(isCoin?4:6)+(30-timeLeft)*0.25;
+
+item.dataset.type=isCoin?"coin":"obstacle";
+
+gameArea.appendChild(item);
+}
+
+function startBossBattle(){
+
+bossMode=true;
+
+clearInterval(spawnLoop);
+
+boss.style.display="block";
+bossHpWrap.style.display="block";
+bossText.style.display="block";
+
+message.style.display="block";
+
+setTimeout(()=>{
+message.style.display="none";
+},1800);
+
+bossAttackLoop=setInterval(()=>{
+spawnBossAttack();
+},500);
+}
+
+function spawnBossAttack(){
+
+if(!running || !bossMode) return;
+
+const bullet=document.createElement("div");
+
+bullet.className="bossBullet";
+bullet.textContent="❄️";
+
+bullet.style.left=
+Math.random()*(gameArea.clientWidth-40)+"px";
+
+bullet.style.top="120px";
+
+bullet.dataset.speed=
+8+Math.random()*4;
+
+gameArea.appendChild(bullet);
+}
+
+function shootFish(){
+
+if(!running || !bossMode) return;
+
+const shot=document.createElement("div");
+
+shot.className="playerShot";
+shot.textContent="🐟";
+
+shot.style.left=(px-15)+"px";
+shot.style.bottom="110px";
+
+shot.dataset.y=gameArea.clientHeight-120;
+
+gameArea.appendChild(shot);
+}
+
+function update(){
+
+if(!running) return;
+
+px+=(targetX-px)*0.35;
+
+penguin.style.left=px+"px";
+
+const pRect=penguin.getBoundingClientRect();
+
+document.querySelectorAll(
+".obstacle,.coin,.bossBullet"
+).forEach(item=>{
+
+let y=parseFloat(item.style.top||0);
+
+y+=parseFloat(item.dataset.speed||8);
+
+item.style.top=y+"px";
+
+const r=item.getBoundingClientRect();
+
+const hit=!(
+pRect.right<r.left ||
+pRect.left>r.right ||
+pRect.bottom<r.top ||
+pRect.top>r.bottom
+);
+
+if(hit){
+
+if(item.classList.contains("coin")){
+
+score+=10;
+scoreEl.textContent=score;
+item.remove();
+
+}else if(item.classList.contains("bossBullet")){
+
+playerHp--;
+
+playerHpEl.textContent=playerHp;
+
+item.remove();
+
+if(playerHp<=0){
+endGame(true,false);
+return;
+}
+
+}else{
+
+endGame(true,false);
+return;
+}
+}
+
+if(y>gameArea.clientHeight+80){
+
+if(item.classList.contains("obstacle")){
+score+=2;
+scoreEl.textContent=score;
+}
+
+item.remove();
+}
+
+});
+
+document.querySelectorAll(".playerShot").forEach(shot=>{
+
+let y=parseFloat(shot.dataset.y);
+
+y-=12;
+
+shot.dataset.y=y;
+
+shot.style.top=y+"px";
+
+if(y<0){
+shot.remove();
+return;
+}
+
+const bossRect=boss.getBoundingClientRect();
+const shotRect=shot.getBoundingClientRect();
+
+const hit=!(
+shotRect.right<bossRect.left ||
+shotRect.left>bossRect.right ||
+shotRect.bottom<bossRect.top ||
+shotRect.top>bossRect.bottom
+);
+
+if(hit && bossMode){
+
+bossHpValue-=5;
+
+if(bossHpValue<0){
+bossHpValue=0;
+}
+
+bossHp.style.width=bossHpValue+"%";
+
+score+=20;
+scoreEl.textContent=score;
+
+shot.remove();
+
+if(bossHpValue<=0){
+
+bossDefeated=true;
+
+endGame(false,true);
+return;
+}
+}
+
+});
+
+gameLoop=requestAnimationFrame(update);
+}
+
+function endGame(gameOver,defeatedBoss){
+
+if(!running) return;
+
+running=false;
+
+clearInterval(spawnLoop);
+clearInterval(timerLoop);
+clearInterval(bossAttackLoop);
+
+cancelAnimationFrame(gameLoop);
+
+finalScoreEl.textContent=score;
+
+let rank="C";
+
+if(score>=100) rank="B";
+if(score>=200) rank="A";
+if(score>=350) rank="S";
+
+if(defeatedBoss){
+
+rankEl.textContent="👑 BOSS撃破！";
+
+}else if(gameOver){
+
+rankEl.textContent="💥 GAME OVER / "+rank;
+
+}else{
+
+rankEl.textContent="🏆 SURVIVE / "+rank;
+}
+
+show(resultScreen);
+}
+
+function setPosition(clientX){
+
+const rect=gameArea.getBoundingClientRect();
+
+targetX=clientX-rect.left;
+
+targetX=Math.max(
+25,
+Math.min(rect.width-25,targetX)
+);
+}
+
+gameArea.addEventListener("pointerdown",e=>{
+
+setPosition(e.clientX);
+
+if(bossMode){
+shootFish();
+}
+
+});
+
+gameArea.addEventListener("pointermove",e=>{
+
+if(running){
+setPosition(e.clientX);
+}
+
+});
+
+document.getElementById("startBtn")
+.addEventListener("click",startGame);
+
+document.getElementById("retryBtn")
+.addEventListener("click",startGame);
+</script>
+
+</body>
+</html>
